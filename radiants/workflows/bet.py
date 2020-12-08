@@ -4,44 +4,38 @@ from radiants.interfaces.mic import HDBet
 from nipype.interfaces.fsl.utils import Reorient2Std
 from core.workflows.base import BaseWorkflow
 from nipype.interfaces.ants import N4BiasFieldCorrection
-from pycurt.workflows.curation import DataCuration
 
 
 TON4 = ['T1KM', 'T1']
 TOBET = ['T1KM', 'T1', 'FLAIR', 'SWI', 'T2', 'ADC']
 
 
-class BETWorkflow(DataCuration):
-    
-    def __init__(self, **kwargs):
+class BETWorkflow(BaseWorkflow):
 
-        super().__init__(**kwargs)
-        input_specs = {x: {'format': 'NIFTI_GZ', 'processed': DataCuration}
-                       for x in TOBET}
-        output_specs = {x+'_preproc': {'format': 'NIFTI_GZ', 'processed': BETWorkflow}
-                        for x in TOBET}
-        output_specs.update({x+'_preproc_mask': {'format': 'NIFTI_GZ',
-                                                 'processed': BETWorkflow}
-                            for x in TOBET})
-        self.input_specs = input_specs
-        self.output_specs.update(output_specs)
-#         self.create_input_specs()
+    @staticmethod
+    def workflow_inputspecs():
 
-    def workflow_inputspecs(self):
+        input_specs = {}
+        input_specs['format'] = '.nii.gz'
+        input_specs['dependencies'] = []
+        input_specs['suffix'] = ['']
+        input_specs['prefix'] = []
 
-        self.input_specs = {}
-        self.input_specs['format'] = 'NIFTI_GZ'
-    
-    def workflow_outputspecs(self):
+        return input_specs
 
-        self.output_specs = {}
-        self.output_specs['format'] = 'NIFTI_GZ'
-        self.output_specs['bet_image'] = '_preproc'
-        self.output_specs['bet_image'] = '_preproc_mask'
+    @staticmethod
+    def workflow_outputspecs():
+
+        output_specs = {}
+        output_specs['format'] = '.nii.gz'
+        output_specs['suffix'] = ['_preproc', '_preproc_mask']
+        output_specs['prefix'] = []
+
+        return output_specs
 
     def workflow(self):
 
-        self.datasource()
+#         self.datasource()
 
         datasource = self.data_source
         dict_sequences = self.dict_sequences
@@ -61,10 +55,10 @@ class BETWorkflow(DataCuration):
 
         for key in tobet:
             files = []
-            if tobet[key]['ref'] is not None:
-                files.append(tobet[key]['ref'])
-            if tobet[key]['other'] is not None:
-                files = files + tobet[key]['other']
+#             if tobet[key]['ref'] is not None:
+#                 files.append(tobet[key]['ref'])
+            if tobet[key]['scans'] is not None:
+                files = files + tobet[key]['scans']
             for el in files:
                 el = el.strip(self.extention)
                 node_name = '{0}_{1}'.format(key, el)
@@ -93,6 +87,9 @@ class BETWorkflow(DataCuration):
                 workflow.connect(datasource, node_name, reorient, 'in_file')
 
         return workflow
-    
-    def workflow_setup(self):
-        return BaseWorkflow.workflow_setup(self)
+
+    def workflow_setup(self, create_database=True, dict_sequences=None, **kwargs):
+
+        return BaseWorkflow.workflow_setup(
+            self, create_database=create_database,
+            dict_sequences=dict_sequences, **kwargs)
