@@ -19,9 +19,11 @@ class RegistrationWorkflow(BaseWorkflow):
         input_specs = {}
 
         input_specs['format'] = '.nii.gz'
-        input_specs['suffix'] = ['_preproc', '_preproc_mask']
+        dependencies = {}
+        dependencies[BETWorkflow] = [['_preproc', '.nii.gz']]
+        input_specs['suffix'] = ['_preproc']
         input_specs['prefix'] = []
-        input_specs['dependencies'] = [BETWorkflow]
+        input_specs['dependencies'] = dependencies
 
         return input_specs
 
@@ -61,20 +63,21 @@ class RegistrationWorkflow(BaseWorkflow):
         mr_rt_ref = None
         rtct = None
 
-        if dict_sequences['MR-RT']:
+        if dict_sequences['MR-RT'] and self.normilize_mr_rt:
             ref_session = list(dict_sequences['MR-RT'].keys())[0]
             ref_scans = dict_sequences['MR-RT'][ref_session]['scans']
             for pr in POSSIBLE_REF:
                 for scan in ref_scans:
-                    if pr in scan:
-                        mr_rt_ref = '{0}_{1}'.format(ref_session, scan)
-                        mr_rt_ref_name = scan
-#                         ref_scans.remove(scan)
+                    if pr in scan.split('_')[0]:
+                        mr_rt_ref = '{0}_{1}_preproc'.format(
+                            ref_session, scan.split('_')[0])
+                        mr_rt_ref_name = '{}_preproc'.format(
+                            scan.split('_')[0])
                         break
                 else:
                     continue
                 break
-        if dict_sequences['RT']:
+        if dict_sequences['RT'] and self.normilize_rtct:
             rt_session = list(dict_sequences['RT'].keys())[0]
             ct_name = dict_sequences['RT'][rt_session]['rtct']
             if ct_name is not None and mr_rt_ref is not None:
@@ -103,26 +106,35 @@ class RegistrationWorkflow(BaseWorkflow):
 
         for key in toreg:
             session = toreg[key]
-#             session = dict_sequences['OT'][key]
             if session['scans'] is not None:
                 scans = session['scans']
+                scans = [x for x in scans if 'mask' not in x]
                 ref = None
                 for pr in POSSIBLE_REF:
                     for scan in scans:
                         if pr in scan:
-                            ref = '{0}_{1}'.format(key, scan)
-                            scans.remove(scan)
+                            ref = '{0}_{1}_preproc'.format(
+                                key, scan.split('_')[0])
+                            scans.remove('{}_preproc'.format(
+                                scan.split('_')[0]))
+                            ref_name = scan.split('_')[0]
+                            workflow.connect(
+                                datasource, ref, datasink,
+                                'results.subid.{0}.@{1}_reg'.format(
+                                    key, ref_name))
+                            substitutions += [
+                                ('{}_preproc'.format(scan.split('_')[0]),
+                                 '{}_reg'.format(scan.split('_')[0]))]
                             break
                     else:
                         continue
                     break
                 if ref is not None:
                     if mr_rt_ref is not None and key != ref_session:
-                        ref_name = ref.split('_')[-1]
                         reg_mr_rt = nipype.Node(
                             interface=AntsRegSyn(),
                             name='{}_def_reg'.format(key))
-                        reg_mr_rt.inputs.transformation = 'r'
+                        reg_mr_rt.inputs.transformation = 's'
                         reg_mr_rt.inputs.num_dimensions = 3
                         reg_mr_rt.inputs.num_threads = 6
                         reg_mr_rt.inputs.out_prefix = '{}_reg2MR_RT'.format(ref_name)
