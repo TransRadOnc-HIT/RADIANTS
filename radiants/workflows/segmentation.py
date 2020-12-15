@@ -5,8 +5,7 @@ from radiants.interfaces.utils import NNUnetPreparation
 from radiants.interfaces.mic import HDGlioPredict, NNUnetInference
 from core.workflows.base import BaseWorkflow
 from nipype.interfaces.ants import ApplyTransforms
-from radiants.workflows.registration import RegistrationWorkflow
-from radiants.workflows.bet import BETWorkflow
+from radiants.workflows.registration import RegistrationWorkflow, POSSIBLE_REF
 
 
 NEEDED_SEQUENCES = ['T1KM', 'T1', 'FLAIR', 'T2']
@@ -29,9 +28,19 @@ class TumorSegmentation(BaseWorkflow):
 
         input_specs['format'] = '.nii.gz'
         dependencies = {}
-        dependencies[RegistrationWorkflow] = [['_reg', '.nii.gz']]
-#         dependencies[BETWorkflow] = [['_preproc', '.nii.gz']]
-        input_specs['input_suffix'] = ['_reg']
+        dependencies[RegistrationWorkflow] = [
+            ['_reg', '.nii.gz', NEEDED_SEQUENCES, 'all'],
+            ['_reg2MR_RT_warp', '.nii.gz', ['T1KM', 'T1'], 'mrrt'],
+            ['_reg2MR_RT_linear_mat', '.mat', ['T1KM', 'T1'], 'mrrt'],
+            ['_reg_reg2RTCT_linear_mat', '.mat', ['T1KM', 'T1'], 'rt']]
+        formats = {}
+        for k in dependencies:
+            for entry in dependencies[k]:
+                formats[entry[0]] = entry[1]
+        input_specs['data_formats'] = formats
+        input_specs['input_suffix'] = [
+            '_reg', '_reg2MR_RT_warp', '_reg2MR_RT_linear_mat',
+            '_reg_reg2RTCT_linear_mat']
         input_specs['prefix'] = []
         input_specs['dependencies'] = dependencies
 
@@ -72,15 +81,39 @@ class TumorSegmentation(BaseWorkflow):
         substitutions = [('subid', sub_id)]
         substitutions += [('results/', '{}/'.format(self.workflow_name))]
         substitutions += [('/segmentation.nii.gz', '/Tumor_predicted.nii.gz')]
+        substitutions += [('/GTV/subject1.nii.gz', '/GTV_predicted.nii.gz')]
+        substitutions += [('/tumor/subject1.nii.gz', '/GTV_predicted_2modalities.nii.gz')]
+
+        mr_rt_ref = None
+        rtct = None
+
+        if dict_sequences['MR-RT'] and self.normilize_mr_rt:
+            ref_session = list(dict_sequences['MR-RT'].keys())[0]
+            ref_scans = dict_sequences['MR-RT'][ref_session]['scans']
+            for pr in POSSIBLE_REF:
+                for scan in ref_scans:
+                    if pr in scan.split('_')[0]:
+                        mr_rt_ref = scan.split('_')[0]
+                        break
+                else:
+                    continue
+                break
+
+        if dict_sequences['RT'] and self.normilize_rtct:
+            rt_session = list(dict_sequences['RT'].keys())[0]
+            ct_name = dict_sequences['RT'][rt_session]['rtct']
+            if ct_name is not None and mr_rt_ref is not None:
+                rtct = '{0}_rtct'.format(rt_session, ct_name)
 
         for key in tosegment:
             session = tosegment[key]
             if session['scans'] is not None:
                 scans = session['scans']
-                scans = [x for x in scans if 'reg' in x]
-                if len(scans) != 4:
-                    hd_glio = False
-                elif len(scans) == 4:
+#                 scans = [x for x in scans if 'reg2' not in x]
+                if ('T1KM_reg' in scans and 'FLAIR_reg' in scans
+                        and 'T1_reg' in scans and 'T2_reg' in scans):
+                    hd_glio = True
+                else:
                     hd_glio = True
                 if 'T1KM_reg' not in scans or 'FLAIR_reg' not in scans:
                     two_modalities_seg = False
@@ -90,7 +123,7 @@ class TumorSegmentation(BaseWorkflow):
                     tumor_seg  = nipype.Node(
                         interface=HDGlioPredict(),
                         name='{}_tumor_segmentation'.format(key))
-                    tumor_seg.inputs.out_file = 'tumor_segmentation'
+                    tumor_seg.inputs.out_file = 'Tumor_segmentation'
                     workflow.connect(datasource, '{}_T1KM_reg'.format(key),
                                      tumor_seg, 'ct1')
                     workflow.connect(datasource, '{}_T2_reg'.format(key),
@@ -102,6 +135,9 @@ class TumorSegmentation(BaseWorkflow):
                     workflow.connect(
                         tumor_seg, 'out_file', datasink,
                         'results.subid.{}.@tumor_seg'.format(key))
+                    workflow, datasink = self.apply_transformations(
+                        'out_file', tumor_seg, 'Tumor_segmentation', datasource,
+                        workflow, mr_rt_ref, rtct, key, ref_session, datasink)
                 
                 if two_modalities_seg:
                     mi = nipype.Node(Merge(2), name='{}_merge'.format(key))
@@ -124,7 +160,10 @@ class TumorSegmentation(BaseWorkflow):
                             gtv_seg_data_prep, 'output_folder',
                             gtv_seg, 'input_folder')
                         workflow.connect(gtv_seg, 'output_file', datasink,
-                                         'results.subid.{}.@gtv_seg'.format(key))
+                                         'results.subid.{}.GTV.@gtv_seg'.format(key))
+                        workflow, datasink = self.apply_transformations(
+                            'output_file', gtv_seg, 'GTV_segmentation', datasource,
+                            workflow, mr_rt_ref, rtct, key, ref_session, datasink)
                     if tumor_model is not None:
                         tumor_seg_2mods = nipype.Node(
                             interface=NNUnetInference(),
@@ -135,77 +174,72 @@ class TumorSegmentation(BaseWorkflow):
                             gtv_seg_data_prep, 'output_folder',
                             tumor_seg_2mods, 'input_folder')
                         workflow.connect(tumor_seg_2mods, 'output_file', datasink,
-                                         'results.subid.{}.@tumor_seg2mod'.format(key))
+                                         'results.subid.{}.tumor.@tumor_seg2mod'.format(key))
+                        workflow, datasink = self.apply_transformations(
+                            'output_file', tumor_seg_2mods, 'Tumor_segmentation_2modalities',
+                            datasource, workflow, mr_rt_ref, rtct, key, ref_session,
+                            datasink)
 
         datasink.inputs.substitutions = substitutions
 
         return workflow
 
-    def apply_transformations(self):
-        
-        base_workflow = self.seg_workflow
+    def apply_transformations(self, tonormalize, node, node_name, datasource,
+                              workflow, mr_rt_ref, rtct, session, ref_session,
+                              datasink):
 
-        datasource = self.data_source
-        to_transform = self.to_transform
+        if rtct is not None:
+            apply_ts_rt_ref = nipype.Node(
+                interface=ApplyTransforms(),
+                name='{}_{}_norm2RT'.format(session, node_name))
+            apply_ts_rt_ref.inputs.output_image = (
+                '{}_reg2RTCT.nii.gz'.format(node_name))
+            workflow.connect(node, tonormalize, apply_ts_rt_ref,
+                             'input_image')
+            workflow.connect(datasource, rtct, apply_ts_rt_ref,
+                             'reference_image')
+            workflow.connect(
+                apply_ts_rt_ref, 'output_image', datasink,
+                'results.subid.{0}.@{1}_reg2RTCT'.format(
+                    session, node_name))
+            if session != ref_session:
+                merge_rt_ref = nipype.Node(interface=Merge(3),
+                                name='{}_{}_merge_rt'.format(session, node_name))
+                merge_rt_ref.inputs.ravel_inputs = True
+                workflow.connect(datasource, '{}_{}_reg_reg2RTCT_linear_mat'.format(
+                    ref_session, mr_rt_ref), merge_rt_ref, 'in1')
+                workflow.connect(datasource, '{}_{}_reg2MR_RT_linear_mat'.format(
+                    session, mr_rt_ref), merge_rt_ref, 'in3')
+                workflow.connect(datasource, '{}_{}_reg2MR_RT_warp'.format(
+                    session, mr_rt_ref), merge_rt_ref, 'in2')
+                workflow.connect(merge_rt_ref, 'out', apply_ts_rt_ref, 'transforms')
+            else:
+                workflow.connect(datasource, '{}_{}_reg_reg2RTCT_linear_mat'.format(
+                session, mr_rt_ref), apply_ts_rt_ref, 'transforms')
 
-        workflow = nipype.Workflow('apply_transformations_workflow',
-                                   base_dir=self.nipype_cache)
-        datasink = nipype.Node(nipype.DataSink(base_directory=self.result_dir), "datasink")
-    
-        substitutions = [('subid', self.sub_id)]
-        substitutions += [('results/', 'tumor_segmentation_results/')]
-        for image in to_transform:
-            base_name = image.replace('.', '_')
-            outname = image.split('.')[0].upper()
-            if self.reference:
-                apply_ts_ref = nipype.MapNode(interface=ApplyTransforms(),
-                                              iterfield=['input_image', 'transforms'],
-                                              name='apply_ts_ref{}'.format(base_name))
-                apply_ts_ref.inputs.interpolation = 'NearestNeighbor'
-        
-                workflow.connect(datasource, 'reference', apply_ts_ref, 'reference_image')
-                if self.t10:
-                    merge_ref_ts = nipype.MapNode(interface=Merge(3),
-                                                  iterfield=['in1', 'in2', 'in3'],
-                                                  name='merge_ct_ts{}'.format(base_name))
-                    workflow.connect(datasource, 't12ct_mat', merge_ref_ts, 'in1')
-                    workflow.connect(datasource, 'reg2t1_warp', merge_ref_ts, 'in2')
-                    workflow.connect(datasource, 'reg2t1_mat', merge_ref_ts, 'in3')
-                    workflow.connect(merge_ref_ts, 'out', apply_ts_ref, 'transforms')
-                else:
-                    workflow.connect(datasource, 't12ct_mat', apply_ts_ref, 'transforms')
-                workflow.connect(base_workflow, image, apply_ts_ref, 'input_image')
-                workflow.connect(apply_ts_ref, 'output_image', datasink,
-                                 'results.subid.@{}_reg2ref'.format(base_name))
-        
-            if self.t10:
-                merge_t10_ts = nipype.MapNode(interface=Merge(2),
-                                              iterfield=['in1', 'in2'],
-                                              name='merge_t10_ts{}'.format(base_name))
-                apply_ts_t10 = nipype.MapNode(interface=ApplyTransforms(),
-                                              iterfield=['input_image', 'transforms'],
-                                              name='apply_ts_t10{}'.format(base_name))
-                apply_ts_t10.inputs.interpolation = 'NearestNeighbor'
-        
-                workflow.connect(datasource, 't1_0', apply_ts_t10, 'reference_image')
-                workflow.connect(datasource, 'reg2t1_warp', merge_t10_ts, 'in1')
-                workflow.connect(datasource, 'reg2t1_mat', merge_t10_ts, 'in2')
-                workflow.connect(merge_t10_ts, 'out', apply_ts_t10, 'transforms')
+        if mr_rt_ref is not None and session != ref_session:
             
-                workflow.connect(base_workflow, image, apply_ts_t10, 'input_image')
-                workflow.connect(apply_ts_t10, 'output_image', datasink,
-                                 'results.subid.@{}_reg2T10'.format(base_name))
-     
-            for i, session in enumerate(self.sessions):
-                substitutions += [('_apply_ts_t10{0}{1}/{2}_trans.nii.gz'
-                                   .format(base_name, i, to_transform[image]),
-                                   session+'/'+'{}_reg2T1ref.nii.gz'.format(outname))]
-                substitutions += [('_apply_ts_ref{0}{1}/{2}_trans.nii.gz'
-                                   .format(base_name, i, to_transform[image]),
-                                   session+'/'+'{}_reg2CT.nii.gz'.format(outname))]
-    
-        datasink.inputs.substitutions =substitutions
+            apply_ts_rt_ref = nipype.Node(
+                interface=ApplyTransforms(),
+                name='{0}_{1}_norm2MR_RT'.format(session, node_name))
+            apply_ts_rt_ref.inputs.output_image = (
+                '{}_reg2MR_RT.nii.gz'.format(node_name))
+            workflow.connect(node, tonormalize, apply_ts_rt_ref,
+                             'input_image')
+            workflow.connect(datasource, '{}_{}_reg'.format(
+                    session, mr_rt_ref), apply_ts_rt_ref, 'reference_image')
+            workflow.connect(
+                apply_ts_rt_ref, 'output_image', datasink,
+                'results.subid.{0}.@{1}_reg2MR_RT'.format(
+                    session, node_name))
 
-        workflow = self.datasink(workflow, datasink)
+            merge_rt_ref = nipype.Node(interface=Merge(2),
+                            name= '{0}_{1}_merge_mrrt'.format(session, node_name))
+            merge_rt_ref.inputs.ravel_inputs = True
+            workflow.connect(datasource, '{0}_{1}_reg2MR_RT_linear_mat'.format(
+                session, mr_rt_ref), merge_rt_ref, 'in2')
+            workflow.connect(datasource, '{0}_{1}_reg2MR_RT_warp'.format(
+                session, mr_rt_ref), merge_rt_ref, 'in1')
+            workflow.connect(merge_rt_ref, 'out', apply_ts_rt_ref, 'transforms')
     
-        return workflow
+        return workflow, datasink

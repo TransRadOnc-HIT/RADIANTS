@@ -8,7 +8,7 @@ from radiants.workflows.bet import BETWorkflow
 
 
 TOREG = ['T1KM', 'T1', 'FLAIR', 'SWI', 'T2', 'ADC']
-POSSIBLE_REF = ['T1KM', 'T1']
+POSSIBLE_REF = ['T1KM', 'T1'] # order is important! 
 
 
 class RegistrationWorkflow(BaseWorkflow):
@@ -20,7 +20,12 @@ class RegistrationWorkflow(BaseWorkflow):
 
         input_specs['format'] = '.nii.gz'
         dependencies = {}
-        dependencies[BETWorkflow] = [['_preproc', '.nii.gz']]
+        dependencies[BETWorkflow] = [['_preproc', '.nii.gz', TOREG, 'all']]
+        formats = {}
+        for k in dependencies:
+            for entry in dependencies[k]:
+                formats[entry[0]] = entry[1]
+        input_specs['data_formats'] = formats
         input_specs['suffix'] = ['_preproc']
         input_specs['prefix'] = []
         input_specs['dependencies'] = dependencies
@@ -32,7 +37,7 @@ class RegistrationWorkflow(BaseWorkflow):
 
         output_specs = {}
         output_specs['format'] = '.nii.gz'
-        output_specs['suffix'] = ['_reg', '_reg2MR_RT', 'reg2RTCT']
+        output_specs['suffix'] = ['_reg', '_reg2MR_RT', '_reg2RTCT']
         output_specs['prefix'] = []
 
         return output_specs

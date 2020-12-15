@@ -35,7 +35,7 @@ if __name__ == "__main__":
             local_sink=ARGS.local_sink, normilize_mr_rt=ARGS.normalize_to_mr_rt,
             local_project_id=ARGS.local_project_id, normilize_rtct=ARGS.normalize_to_rt_ct,
             local_basedir=ARGS.local_dir, gtv_model=ARGS.gtv_seg_model_dir,
-            tumor_model=ARGS.tumor_seg_model_dir)
+            tumor_model=ARGS.tumor_seg_model_dir, cores=ARGS.num_cores)
 
         wf = workflow.workflow_setup(check_dependencies=True)
         workflow.runner(wf)

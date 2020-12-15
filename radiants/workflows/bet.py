@@ -17,9 +17,10 @@ class BETWorkflow(BaseWorkflow):
 
         input_specs = {}
         input_specs['format'] = '.nii.gz'
-        input_specs['dependencies'] = []
+        input_specs['dependencies'] = {}
         input_specs['suffix'] = ['']
         input_specs['prefix'] = []
+        input_specs['data_formats'] = {'': '.nii.gz'}
 
         return input_specs
 

@@ -185,7 +185,7 @@ class NNUnetInference(CommandLine):
             basepath = '/'.join(self.inputs.input_folder.split('/')[:-1])
             outname = 'nnunet_inference_{}'.format(self.inputs.prefix)
             output_folder = os.path.join(basepath, outname)
-            output_folder = 'nnunet_inference'
+#             output_folder = 'nnunet_inference'
         return os.path.abspath(output_folder)
 
     def _gen_filename(self, name):
