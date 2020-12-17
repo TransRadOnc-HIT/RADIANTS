@@ -4,7 +4,7 @@ from radiants.workflows.bet import BETWorkflow
 from core.utils.config import cmdline_input_config, create_subject_list
 
 
-if __name__ == "__main__":
+def main():
 
     PARSER = cmdline_input_config()
     
@@ -41,3 +41,7 @@ if __name__ == "__main__":
         workflow.runner(wf)
 
     print('Done!')
+
+
+if __name__ == "__main__":
+    main()
