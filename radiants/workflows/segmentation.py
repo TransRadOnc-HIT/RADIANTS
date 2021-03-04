@@ -86,6 +86,7 @@ class TumorSegmentation(BaseWorkflow):
 
         mr_rt_ref = None
         rtct = None
+        ref_session = None
 
         if dict_sequences['MR-RT'] and self.normilize_mr_rt:
             ref_session = list(dict_sequences['MR-RT'].keys())[0]
@@ -114,7 +115,7 @@ class TumorSegmentation(BaseWorkflow):
                         and 'T1_reg' in scans and 'T2_reg' in scans):
                     hd_glio = True
                 else:
-                    hd_glio = True
+                    hd_glio = False
                 if 'T1KM_reg' not in scans or 'FLAIR_reg' not in scans:
                     two_modalities_seg = False
                 else:
