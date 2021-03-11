@@ -14,21 +14,20 @@ POSSIBLE_REF = ['T1KM', 'T1'] # order is important!
 class RegistrationWorkflow(BaseWorkflow):
 
     @staticmethod
-    def workflow_inputspecs():
+    def workflow_inputspecs(additional_inputs=None):
 
         input_specs = {}
 
-        input_specs['format'] = '.nii.gz'
         dependencies = {}
-        dependencies[BETWorkflow] = [['_preproc', '.nii.gz', TOREG, 'all']]
+        dependencies[BETWorkflow] = {
+            '_preproc': {'mandatory': True, 'format': '.nii.gz'}}
+        input_specs['dependencies'] = dependencies
         formats = {}
         for k in dependencies:
             for entry in dependencies[k]:
-                formats[entry[0]] = entry[1]
+                formats[entry] = dependencies[k][entry]['format']
         input_specs['data_formats'] = formats
-        input_specs['suffix'] = ['_preproc']
-        input_specs['prefix'] = []
-        input_specs['dependencies'] = dependencies
+        input_specs['additional_inputs'] = additional_inputs
 
         return input_specs
 
@@ -36,9 +35,11 @@ class RegistrationWorkflow(BaseWorkflow):
     def workflow_outputspecs():
 
         output_specs = {}
-        output_specs['format'] = '.nii.gz'
-        output_specs['suffix'] = ['_reg', '_reg2MR_RT', '_reg2RTCT']
-        output_specs['prefix'] = []
+        dict_outputs = {'_reg': {'possible_sequences': TOREG, 'format': '.nii.gz', 'multiplicity': 'all', 'composite': None},
+                        '_reg2MR_RT_warp': {'possible_sequences': ['T1KM', 'T1'], 'format': '.nii.gz', 'multiplicity': 'mrrt', 'composite': None},
+                        '_reg2MR_RT_linear_mat': {'possible_sequences': ['T1KM', 'T1'], 'format': '.mat', 'multiplicity': 'mrrt', 'composite': None},
+                        '_reg_reg2RTCT_linear_mat': {'possible_sequences': ['T1KM', 'T1'], 'format': '.mat', 'multiplicity': 'rt', 'composite': None}}
+        output_specs['outputs'] = dict_outputs
 
         return output_specs
     

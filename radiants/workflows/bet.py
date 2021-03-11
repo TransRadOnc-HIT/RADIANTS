@@ -13,7 +13,7 @@ TOBET = ['T1KM', 'T1', 'FLAIR', 'SWI', 'T2', 'ADC']
 class BETWorkflow(BaseWorkflow):
 
     @staticmethod
-    def workflow_inputspecs():
+    def workflow_inputspecs(additional_inputs=None):
 
         input_specs = {}
         input_specs['format'] = '.nii.gz'
@@ -21,6 +21,7 @@ class BETWorkflow(BaseWorkflow):
         input_specs['suffix'] = ['']
         input_specs['prefix'] = []
         input_specs['data_formats'] = {'': '.nii.gz'}
+        input_specs['additional_inputs'] = additional_inputs
 
         return input_specs
 
@@ -28,9 +29,8 @@ class BETWorkflow(BaseWorkflow):
     def workflow_outputspecs():
 
         output_specs = {}
-        output_specs['format'] = '.nii.gz'
-        output_specs['suffix'] = ['_preproc', '_preproc_mask']
-        output_specs['prefix'] = []
+        dict_outputs = {'_preproc': {'possible_sequences': TOBET, 'format': '.nii.gz', 'multiplicity': 'all', 'composite': None}}
+        output_specs['outputs'] = dict_outputs
 
         return output_specs
 

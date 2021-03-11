@@ -22,27 +22,24 @@ class TumorSegmentation(BaseWorkflow):
         self.normalize = normalize
 
     @staticmethod
-    def workflow_inputspecs():
+    def workflow_inputspecs(additional_inputs=None):
 
         input_specs = {}
 
         input_specs['format'] = '.nii.gz'
         dependencies = {}
-        dependencies[RegistrationWorkflow] = [
-            ['_reg', '.nii.gz', NEEDED_SEQUENCES, 'all'],
-            ['_reg2MR_RT_warp', '.nii.gz', ['T1KM', 'T1'], 'mrrt'],
-            ['_reg2MR_RT_linear_mat', '.mat', ['T1KM', 'T1'], 'mrrt'],
-            ['_reg_reg2RTCT_linear_mat', '.mat', ['T1KM', 'T1'], 'rt']]
+        dependencies[RegistrationWorkflow] = {
+            '_reg': {'mandatory': True, 'format': '.nii.gz'},
+            '_reg2MR_RT_warp': {'mandatory': False, 'format': '.nii.gz'},
+            '_reg2MR_RT_linear_mat': {'mandatory': False, 'format': '.mat'},
+            '_reg_reg2RTCT_linear_mat': {'mandatory': False, 'format': '.mat'}}
         formats = {}
         for k in dependencies:
             for entry in dependencies[k]:
-                formats[entry[0]] = entry[1]
+                formats[entry] = dependencies[k][entry]['format']
         input_specs['data_formats'] = formats
-        input_specs['input_suffix'] = [
-            '_reg', '_reg2MR_RT_warp', '_reg2MR_RT_linear_mat',
-            '_reg_reg2RTCT_linear_mat']
-        input_specs['prefix'] = []
         input_specs['dependencies'] = dependencies
+        input_specs['additional_inputs'] = additional_inputs
 
         return input_specs
 
@@ -50,9 +47,15 @@ class TumorSegmentation(BaseWorkflow):
     def workflow_outputspecs():
 
         output_specs = {}
-        output_specs['format'] = '.nii.gz'
-        output_specs['suffix'] = ['GTV_predicted']
-        output_specs['prefix'] = []
+        output_specs['outputs'] = {'GTVPredicted': {'possible_sequences': [], 'format': '.nii.gz',
+                                                     'multiplicity': 'all',
+                                                     'composite': ['T1KM_reg', 'FLAIR_reg']},
+                                   'GTVPredicted-2modalities': {'possible_sequences': [], 'format': '.nii.gz',
+                                                                'multiplicity': 'all',
+                                                                'composite': ['T1KM_reg', 'FLAIR_reg']},
+                                   'TumorPredicted' : {'possible_sequences': [], 'format': '.nii.gz',
+                                                       'multiplicity': 'all',
+                                                       'composite': ['T1KM_reg', 'FLAIR_reg', 'T1_reg', 'T2_reg']}}
 
         return output_specs
 
