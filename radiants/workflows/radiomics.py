@@ -29,6 +29,22 @@ class Radiomics(BaseWorkflow):
 
         input_specs['format'] = '.nii.gz'
         dependencies = {}
+        input_specs['inputs'] = {
+            'GTVPredicted': {'mandatory': True, 'format': '.nii.gz',
+                             'dependency': TumorSegmentation,
+                             'possible_sequences': [], 'multiplicity': 'all',
+                             'composite': ['T1KM_reg', 'FLAIR_reg']},
+            'GTVPredicted-2modalities': {
+                'mandatory': True, 'format': '.nii.gz',
+                'dependency': TumorSegmentation, 'possible_sequences': [],
+                'multiplicity': 'all', 'composite': ['T1KM_reg', 'FLAIR_reg']},
+            'TumorPredicted': {'mandatory': False, 'format': '.nii.gz',
+                               'dependency': TumorSegmentation,
+                               'possible_sequences': [], 'multiplicity': 'all',
+                               'composite': ['T1KM_reg', 'FLAIR_reg', 'T1_reg', 'T2_reg']},
+            '_reg': {'mandatory': True, 'format': '.nii.gz', 'dependency': RegistrationWorkflow,
+                     'possible_sequences': NEEDED_SEQUENCES, 'multiplicity': 'all',
+                     'composite': None}}
         dependencies[TumorSegmentation] = {
             'GTVPredicted': {'mandatory': False, 'format': '.nii.gz'},
             'GTVPredicted-2modalities': {'mandatory': False, 'format': '.nii.gz'},
@@ -103,7 +119,8 @@ class Radiomics(BaseWorkflow):
                         workflow.connect(datasource, image_name, features, 'input_image')
                         workflow.connect(datasource, roi_name, features, 'rois')
                         workflow.connect(features, 'feature_files', datasink,
-                                         'results.subid.@csv_file_{}{}'.format(image_name, roi_name))
+                                         'results.subid.{0}.@csv_file_{1}{2}'.format(
+                                             key, image_name, roi_name))
                 for image in add_scans:
                     for roi in add_masks:
                         image_name = '{}_{}'.format(key, image)
@@ -115,7 +132,8 @@ class Radiomics(BaseWorkflow):
                         workflow.connect(datasource, image_name, features, 'input_image')
                         workflow.connect(datasource, roi_name, features, 'rois')
                         workflow.connect(features, 'feature_files', datasink,
-                                         'results.subid.@csv_file_{}{}'.format(image_name, roi_name))
+                                         'results.subid.{0}.@csv_file_{1}{2}'.format(
+                                             key, image_name, roi_name))
 
         datasink.inputs.substitutions = substitutions
 

@@ -19,6 +19,9 @@ class RegistrationWorkflow(BaseWorkflow):
         input_specs = {}
 
         dependencies = {}
+        input_specs['inputs'] = {
+            '_preproc': {'mandatory': True, 'format': '.nii.gz', 'dependency': BETWorkflow,
+                         'possible_sequences': TOREG, 'multiplicity': 'all', 'composite': None}}
         dependencies[BETWorkflow] = {
             '_preproc': {'mandatory': True, 'format': '.nii.gz'}}
         input_specs['dependencies'] = dependencies

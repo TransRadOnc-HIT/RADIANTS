@@ -1,7 +1,7 @@
 from radiants.workflows.segmentation import TumorSegmentation
 from radiants.workflows.registration import RegistrationWorkflow
 from radiants.workflows.bet import BETWorkflow
-from core.utils.config import cmdline_input_config, create_subject_list
+from radiants.utils.config import cmdline_input_config, create_subject_list
 from radiants.workflows.radiomics import Radiomics
 
 

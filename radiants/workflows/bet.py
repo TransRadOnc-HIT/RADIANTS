@@ -17,6 +17,9 @@ class BETWorkflow(BaseWorkflow):
 
         input_specs = {}
         input_specs['format'] = '.nii.gz'
+        input_specs['inputs'] = {
+            '': {'mandatory': True, 'format': '.nii.gz', 'dependency': None,
+                 'possible_sequences': TOBET, 'multiplicity': 'all', 'composite': None}}
         input_specs['dependencies'] = {}
         input_specs['suffix'] = ['']
         input_specs['prefix'] = []
@@ -29,7 +32,9 @@ class BETWorkflow(BaseWorkflow):
     def workflow_outputspecs():
 
         output_specs = {}
-        dict_outputs = {'_preproc': {'possible_sequences': TOBET, 'format': '.nii.gz', 'multiplicity': 'all', 'composite': None}}
+        dict_outputs = {'_preproc': {
+            'possible_sequences': TOBET, 'format': '.nii.gz',
+            'multiplicity': 'all', 'composite': None}}
         output_specs['outputs'] = dict_outputs
 
         return output_specs

@@ -27,6 +27,15 @@ class TumorSegmentation(BaseWorkflow):
         input_specs = {}
 
         input_specs['format'] = '.nii.gz'
+        input_specs['inputs'] = {
+            '_reg': {'mandatory': True, 'format': '.nii.gz', 'dependency': RegistrationWorkflow,
+                     'possible_sequences': NEEDED_SEQUENCES, 'multiplicity': 'all', 'composite': None},
+            '_reg2MR_RT_warp': {'mandatory': False, 'format': '.nii.gz', 'dependency': RegistrationWorkflow,
+                     'possible_sequences': ['T1KM', 'T1'], 'multiplicity': 'mrrt', 'composite': None},
+            '_reg2MR_RT_linear_mat': {'mandatory': False, 'format': '.mat', 'dependency': RegistrationWorkflow,
+                     'possible_sequences': ['T1KM', 'T1'], 'multiplicity': 'mrrt', 'composite': None},
+            '_reg_reg2RTCT_linear_mat': {'mandatory': False, 'format': '.mat', 'dependency': RegistrationWorkflow,
+                     'possible_sequences': ['T1KM', 'T1'], 'multiplicity': 'rt', 'composite': None}}
         dependencies = {}
         dependencies[RegistrationWorkflow] = {
             '_reg': {'mandatory': True, 'format': '.nii.gz'},
@@ -83,9 +92,9 @@ class TumorSegmentation(BaseWorkflow):
                                "datasink")
         substitutions = [('subid', sub_id)]
         substitutions += [('results/', '{}/'.format(self.workflow_name))]
-        substitutions += [('/segmentation.nii.gz', '/Tumor_predicted.nii.gz')]
-        substitutions += [('/GTV/subject1.nii.gz', '/GTV_predicted.nii.gz')]
-        substitutions += [('/tumor/subject1.nii.gz', '/GTV_predicted_2modalities.nii.gz')]
+        substitutions += [('/segmentation.nii.gz', '/TumorPredicted.nii.gz')]
+        substitutions += [('/GTV/subject1.nii.gz', '/GTVPredicted.nii.gz')]
+        substitutions += [('/tumor/subject1.nii.gz', '/GTVPredicted-2modalities.nii.gz')]
 
         mr_rt_ref = None
         rtct = None
